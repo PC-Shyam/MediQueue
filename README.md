@@ -1,10 +1,10 @@
-# 🏥 MediQueue — Hospital Queue Management System
+#  MediQueue — Hospital Queue Management System
 
 Eliminate hospital waiting time. Patients track their live queue position, book appointments online, and only leave home when it's time.
 
 ---
 
-## ✨ Features
+##  Features
 
 | Feature | Detail |
 |---|---|
@@ -17,7 +17,7 @@ Eliminate hospital waiting time. Patients track their live queue position, book 
 
 ---
 
-## 🚀 Quick Start
+##  Quick Start
 
 ### 1. Install dependencies
 ```bash
@@ -43,7 +43,7 @@ npm run dev
 
 ---
 
-## 📱 How to use each tab
+##  How to use each tab
 
 ### My Queue
 1. Enter your token (e.g. `CAR-005`) or mobile number
@@ -78,7 +78,7 @@ npm run dev
 
 ---
 
-## 🛠 Tech Stack
+##  Tech Stack
 
 | Layer | Technology |
 |---|---|
@@ -90,7 +90,7 @@ npm run dev
 
 ---
 
-## 📡 REST API
+##  REST API
 
 ```
 GET    /api/doctors                    → all doctors with live stats
@@ -112,7 +112,7 @@ POST   /api/queue/reassign             → admin reassigns patient
 GET    /api/queue/stats/overview       → admin dashboard stats
 ```
 
-## 📡 Socket.IO Events
+##  Socket.IO Events
 
 ```
 Client → Server:
@@ -129,7 +129,7 @@ Server → Client:
 
 ---
 
-## 🗂 Project Structure
+##  Project Structure
 
 ```
 mediqueue/
@@ -150,7 +150,7 @@ mediqueue/
 
 ---
 
-## 🔮 What to build next
+## What to build next
 
 - [ ] SMS notifications (Twilio) when patient is 2 spots away
 - [ ] Patient location → auto "leave home" reminder
