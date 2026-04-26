@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MediQueue — Hospital Queue Management</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="app-header">
+      <div class="header-inner">
+        <div class="logo">
+          <div class="logo-icon">＋</div>
+          <div>
+            <span class="logo-name">MediQueue</span>
+            <span class="logo-sub">Apollo Hospital, Chennai</span>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px">
+          <div class="live-indicator">
+            <span class="pulse-dot"></span>
+            <span>Live</span>
+          </div>
+          <div id="user-badge" style="display:none;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:5px 12px;font-size:13px">
+            <span id="user-display-name" style="color:var(--text);font-weight:600"></span>
+            <span id="user-role-chip" style="font-size:10px;padding:3px 8px;border-radius:20px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px"></span>
+            <button id="logout-btn" class="btn-ghost" onclick="logout()" style="padding:4px 10px;margin-left:4px;background:#ef444415;color:var(--red);border-color:#ef444440">Sign out</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <nav class="tab-nav" id="tab-nav">
+      <button class="tab-btn active" data-tab="queue" id="nav-queue">
+        <span class="tab-icon">◎</span> My Queue
+      </button>
+      <button class="tab-btn" data-tab="book" id="nav-book">
+        <span class="tab-icon">＋</span> Book
+      </button>
+      <button class="tab-btn" data-tab="doctor" id="nav-doctor">
+        <span class="tab-icon">⊞</span> Doctor
+      </button>
+      <button class="tab-btn" data-tab="admin" id="nav-admin">
+        <span class="tab-icon">◈</span> Admin
+      </button>
+    </nav>
+
+    <main class="main-content">
+      <!-- ── MY QUEUE TAB ── -->
+      <section id="tab-queue" class="tab-pane active">
+        <div class="lookup-card">
+          <p class="section-label">Track your appointment</p>
+          <div class="input-row">
+            <input type="text" id="token-input" placeholder="Enter token (e.g. CAR-005)" />
+            <button id="track-btn" class="btn-primary">Track</button>
+          </div>
+          <div class="divider-or">or</div>
+          <div class="input-row">
+            <input type="tel" id="phone-input" placeholder="Enter mobile number" />
+            <button id="track-phone-btn" class="btn-secondary">Find</button>
+          </div>
+        </div>
+
+        <div id="queue-status" class="hidden">
+          <div class="status-hero">
+            <div class="status-header">
+              <div>
+                <p id="sq-patient-name" class="patient-name"></p>
+                <p id="sq-doctor-info" class="doctor-info"></p>
+              </div>
+              <span id="sq-status-badge" class="status-badge"></span>
+            </div>
+
+            <div class="stat-row three">
+              <div class="stat-box">
+                <span id="sq-position" class="stat-big">—</span>
+                <span class="stat-label">Position</span>
+              </div>
+              <div class="stat-box">
+                <span id="sq-wait" class="stat-big">—</span>
+                <span class="stat-label">Wait (min)</span>
+              </div>
+              <div class="stat-box">
+                <span id="sq-calltime" class="stat-big">—</span>
+                <span class="stat-label">Expected call</span>
+              </div>
+            </div>
+
+            <div style="display:flex;gap:10px;margin-top:1rem">
+              <button id="arrive-btn" class="btn-primary hidden" style="flex:1">
+                ✓ I've arrived at the hospital
+              </button>
+              <button id="cancel-appt-btn" class="btn-secondary hidden" style="flex:1;background:#ef444415;color:#ef4444;border-color:#ef444440">
+                Cancel Appointment
+              </button>
+            </div>
+          </div>
+
+          <div id="queue-ahead" class="queue-ahead-section">
+            <p class="section-label">Patients ahead of you</p>
+            <div id="ahead-list"></div>
+          </div>
+
+          <div id="alert-box" class="alert-box hidden"></div>
+        </div>
+
+        <div class="tip-card">
+          <p class="tip-title">💡 How it works</p>
+          <ol class="tip-list">
+            <li>Book your appointment online to get a token</li>
+            <li>Enter your token here to track live queue position</li>
+            <li>You'll get notified when to leave home — no more waiting hours early!</li>
+            <li>Mark "I've arrived" once you reach the hospital</li>
+          </ol>
+        </div>
+      </section>
+
+      <!-- ── BOOK TAB ── -->
+      <section id="tab-book" class="tab-pane hidden">
+        <div id="booking-form-wrap">
+          <div class="form-card">
+            <p class="section-label">New appointment</p>
+
+            <div class="form-group">
+              <label>Department</label>
+              <select id="dept-select">
+                <option value="">Loading departments...</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Doctor</label>
+              <select id="doctor-select" disabled>
+                <option value="">Select department first</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Date</label>
+              <input type="date" id="appt-date" />
+            </div>
+
+            <div class="form-group">
+              <label>Available time slots</label>
+              <div id="slots-grid" class="slots-grid">
+                <p class="hint-text">Select a doctor and date</p>
+              </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="form-group">
+              <label>Your full name</label>
+              <input type="text" id="patient-name" placeholder="e.g. Arjun Mehta" />
+            </div>
+
+            <div class="form-group">
+              <label>Mobile number</label>
+              <input type="tel" id="patient-phone" placeholder="+91 98765 43210" />
+            </div>
+
+            <div class="form-group">
+              <label>Reason for visit <span class="optional">(optional)</span></label>
+              <input type="text" id="visit-reason" placeholder="e.g. Routine checkup, Follow-up..." />
+            </div>
+
+            <button id="book-btn" class="btn-primary full-width">Confirm appointment →</button>
+          </div>
+        </div>
+
+        <div id="booking-success" class="hidden">
+          <div class="success-card">
+            <div class="success-icon">✓</div>
+            <p class="success-title">Appointment confirmed!</p>
+            <div class="token-display">
+              <span class="token-label">Your token</span>
+              <span id="confirmed-token" class="token-number"></span>
+            </div>
+            <div id="confirmed-details" class="confirmed-details"></div>
+            <p class="success-note">You'll receive SMS notifications when your turn is near. No need to arrive early!</p>
+            <button id="book-another-btn" class="btn-secondary full-width" style="margin-top:1rem">Book another</button>
+            <button id="track-booked-btn" class="btn-primary full-width">Track this appointment →</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── DOCTOR TAB ── -->
+      <section id="tab-doctor" class="tab-pane hidden">
+        <div id="doctor-select-wrap">
+          <div class="form-card">
+            <p class="section-label">Doctor login</p>
+            <div class="form-group">
+              <label>Select your name</label>
+              <select id="doctor-login-select">
+                <option value="">Loading...</option>
+              </select>
+            </div>
+            <button id="doctor-login-btn" class="btn-primary">Open my queue →</button>
+          </div>
+        </div>
+
+        <div id="doctor-dashboard" class="hidden">
+          <div class="doctor-header-bar">
+            <div>
+              <p id="d-name" class="doc-name"></p>
+              <p id="d-dept" class="doc-dept"></p>
+            </div>
+            <button id="doctor-logout-btn" class="btn-ghost">Switch</button>
+          </div>
+
+          <div class="stat-row three">
+            <div class="stat-box">
+              <span id="d-seen" class="stat-big green">0</span>
+              <span class="stat-label">Seen today</span>
+            </div>
+            <div class="stat-box">
+              <span id="d-queue" class="stat-big amber">0</span>
+              <span class="stat-label">In queue</span>
+            </div>
+            <div class="stat-box">
+              <span id="d-upcoming" class="stat-big">0</span>
+              <span class="stat-label">Upcoming</span>
+            </div>
+          </div>
+
+          <div id="current-patient-card" class="current-patient-card hidden">
+            <p class="section-label">In consultation now</p>
+            <div class="current-patient-inner">
+              <div class="patient-avatar" id="d-avatar"></div>
+              <div class="patient-info">
+                <p id="d-current-name" class="big-name"></p>
+                <p id="d-current-reason" class="sub-text"></p>
+                <p id="d-current-token" class="token-chip"></p>
+              </div>
+            </div>
+            <button id="mark-done-btn" class="btn-done">Mark consultation done ✓</button>
+          </div>
+
+          <div class="queue-actions">
+            <button id="call-next-btn" class="btn-call-next">Call next patient →</button>
+          </div>
+
+          <p class="section-label" style="margin-top:1.5rem">Today's queue</p>
+          <div id="doctor-queue-list" class="queue-list"></div>
+        </div>
+      </section>
+
+      <!-- ── ADMIN TAB ── -->
+      <section id="tab-admin" class="tab-pane hidden">
+        <div class="stat-row four">
+          <div class="stat-box">
+            <span id="a-active" class="stat-big">—</span>
+            <span class="stat-label">Active tokens</span>
+          </div>
+          <div class="stat-box">
+            <span id="a-seen" class="stat-big green">—</span>
+            <span class="stat-label">Seen today</span>
+          </div>
+          <div class="stat-box">
+            <span id="a-upcoming" class="stat-big">—</span>
+            <span class="stat-label">Upcoming</span>
+          </div>
+          <div class="stat-box">
+            <span id="a-avg" class="stat-big">—</span>
+            <span class="stat-label">Avg consult (min)</span>
+          </div>
+        </div>
+
+        <p class="section-label" style="margin-top:1.5rem">Doctor workload</p>
+        <div id="admin-doctors-list" class="doctors-grid"></div>
+
+        <p class="section-label" style="margin-top:1.5rem">⚠ Alerts &amp; suggestions</p>
+        <div id="admin-alerts"></div>
+
+        <!-- Manage Doctors section (admin only) -->
+        <div id="manage-doctors-section" style="margin-top:2rem">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
+            <p class="section-label" style="margin:0">Manage Doctors</p>
+            <button id="add-doctor-btn" class="btn-primary" style="padding:8px 16px;font-size:13px" onclick="toggleAddDoctorForm()">＋ Add Doctor</button>
+          </div>
+
+          <!-- Add doctor form (hidden by default) -->
+          <div id="add-doctor-form" class="form-card hidden" style="margin-bottom:1.5rem">
+            <p class="section-label" style="margin-bottom:1rem">New Doctor Details</p>
+            <div class="form-group">
+              <label>Full Name</label>
+              <input type="text" id="new-doc-name" placeholder="e.g. Dr. Ravi Shankar" />
+            </div>
+            <div class="form-group">
+              <label>Department</label>
+              <input type="text" id="new-doc-dept" placeholder="e.g. Cardiology" />
+            </div>
+            <div class="form-group">
+              <label>Room</label>
+              <input type="text" id="new-doc-room" placeholder="e.g. Room 601" />
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+              <div class="form-group">
+                <label>Max patients/day</label>
+                <input type="number" id="new-doc-max" value="20" min="1" max="100" />
+              </div>
+              <div class="form-group">
+                <label>Avg consult (min)</label>
+                <input type="number" id="new-doc-avg" value="7" min="1" max="60" />
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;margin-top:0.5rem">
+              <button class="btn-primary" onclick="submitAddDoctor()" style="flex:1">Add Doctor</button>
+              <button class="btn-secondary" onclick="toggleAddDoctorForm()" style="flex:1">Cancel</button>
+            </div>
+            <div id="add-doctor-result" style="margin-top:1rem;font-size:13px;display:none"></div>
+          </div>
+
+          <div id="manage-doctors-list"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>
