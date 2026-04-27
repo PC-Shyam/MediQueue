@@ -11,7 +11,7 @@ const io = new Server(server, { cors: { origin: '*' } });
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, '../frontend')));
 
 // ─── Socket.IO ─────────────────────────────────────────────────────────────
 io.on('connection', (socket) => {
@@ -54,7 +54,7 @@ const PORT = process.env.PORT || 3000;
 
   // Catch-all MUST come last — serves the SPA for any non-API route
   app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    res.sendFile(path.join(__dirname, '../frontend', 'index.html'));
   });
 
   // Clean expired sessions every hour

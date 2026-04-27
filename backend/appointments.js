@@ -102,5 +102,20 @@ module.exports = function (io) {
     res.json({ success: true });
   });
 
+  // POST /api/appointments/:id/arrive
+  router.post('/:id/arrive', (req, res) => {
+    const appt = Q.getAppointmentById(req.params.id);
+    if (!appt) return res.status(404).json({ success: false, error: 'Not found' });
+    
+    Q.updateStatus('arrived', req.params.id);
+    Q.logEvent(req.params.id, 'arrived');
+    
+    io.to(`queue_${appt.doctor_id}`).emit('queue_update', getEnrichedQueue(appt.doctor_id));
+    io.to(`token_${appt.token}`).emit('token_update', getTokenStatus(appt.token));
+    io.emit('stats_update');
+    
+    res.json({ success: true });
+  });
+
   return router;
 };
