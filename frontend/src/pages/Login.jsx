@@ -3,12 +3,14 @@ import { useAuth } from '../context/AuthContext';
 
 const Login = () => {
   const [role, setRole] = useState('patient');
+  const [mode, setMode] = useState('login'); // login | register
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [pin, setPin] = useState(['', '', '', '']);
+  const [reg, setReg] = useState({ full_name: '', dob: '', gender: '', blood_group: '', emergency_contact: '' });
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const { login } = useAuth();
+  const { login, register } = useAuth();
 
   const handlePinChange = (val, idx) => {
     if (!/^\d*$/.test(val)) return;
@@ -27,12 +29,19 @@ const Login = () => {
     setError('');
     setSubmitting(true);
     try {
+      if (role === 'patient' && mode === 'register') {
+        const res = await register({
+          phone: username, password: pin.join(''), ...reg,
+        });
+        if (!res.success) setError(res.error || 'Registration failed');
+        return;
+      }
       const res = await login(
         role === 'patient' ? username : username.toLowerCase(),
         role === 'patient' ? pin.join('') : password
       );
       if (!res.success) setError(res.error || 'Login failed');
-    } catch (err) { setError('Connection error'); } finally { setSubmitting(false); }
+    } catch (err) { setError(err.error || 'Connection error'); } finally { setSubmitting(false); }
   };
 
   return (
@@ -42,14 +51,14 @@ const Login = () => {
         <p className="title mt-3">MediQueue</p>
       </div>
 
-      <div className="mb-10">
-        <h2 className="heading">Welcome</h2>
-        <p className="subtitle">Role-based Access Control</p>
+      <div className="mb-8">
+        <h2 className="heading">{role === 'patient' && mode === 'register' ? 'Register' : 'Welcome'}</h2>
+        <p className="subtitle">{role === 'patient' && mode === 'register' ? 'Create your patient record' : 'Role-based Access Control'}</p>
       </div>
 
-      <div className="pill-toggle mb-10">
+      <div className="pill-toggle mb-8">
         {['patient', 'doctor', 'admin'].map(id => (
-          <button key={id} onClick={() => setRole(id)} className={role === id ? 'active' : ''}>
+          <button key={id} onClick={() => { setRole(id); setMode('login'); }} className={role === id ? 'active' : ''}>
             {id}
           </button>
         ))}
@@ -58,6 +67,16 @@ const Login = () => {
       {error && <div className="text-red-500 text-center mb-6 text-[10px] uppercase font-bold tracking-widest leading-loose">{error}</div>}
 
       <form onSubmit={handleSubmit} className="mt-4">
+        {role === 'patient' && (
+          <div className="mb-6">
+            <div className="pill-toggle" style={{ maxWidth: '240px' }}>
+              {[['login', 'Sign In'], ['register', 'New Patient']].map(([id, label]) => (
+                <button key={id} type="button" onClick={() => setMode(id)} className={mode === id ? 'active' : ''} style={{ fontSize: '8px' }}>{label}</button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="mb-8">
           <label className="input-label">{role === 'patient' ? 'Mobile Number' : 'Username'}</label>
           <input
@@ -85,9 +104,36 @@ const Login = () => {
           )}
         </div>
 
-        <div className="mt-12">
+        {role === 'patient' && mode === 'register' && (
+          <>
+            <div className="mb-8">
+              <label className="input-label">Full Name</label>
+              <input type="text" value={reg.full_name} onChange={(e) => setReg({ ...reg, full_name: e.target.value })} placeholder="Your full name" className="input-sleek" />
+            </div>
+            <div className="mb-8">
+              <label className="input-label">Date of Birth (optional)</label>
+              <input type="date" value={reg.dob} onChange={(e) => setReg({ ...reg, dob: e.target.value })} className="input-sleek" />
+            </div>
+            <div className="mb-8">
+              <label className="input-label">Gender (optional)</label>
+              <select value={reg.gender} onChange={(e) => setReg({ ...reg, gender: e.target.value })} className="input-sleek">
+                <option value="">—</option>
+                <option>Male</option><option>Female</option><option>Other</option>
+              </select>
+            </div>
+            <div className="mb-8">
+              <label className="input-label">Blood Group (optional)</label>
+              <select value={reg.blood_group} onChange={(e) => setReg({ ...reg, blood_group: e.target.value })} className="input-sleek">
+                <option value="">—</option>
+                {['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map(b => <option key={b}>{b}</option>)}
+              </select>
+            </div>
+          </>
+        )}
+
+        <div className="mt-10">
           <button type="submit" disabled={submitting} className="btn btn-primary h-14">
-            {submitting ? 'Authenticating...' : 'Sign In Now →'}
+            {submitting ? 'Please wait…' : role === 'patient' && mode === 'register' ? 'Create My Record →' : 'Sign In Now →'}
           </button>
         </div>
       </form>

@@ -1,10 +1,14 @@
 {
-  "name": "hospital-management-system",
-  "version": "1.0.0",
+  "name": "mediqueue",
+  "version": "2.0.0",
+  "description": "Integrated Patient Management and Smart Queue Management System",
   "scripts": {
+    "install:all": "npm install --prefix backend && npm install --prefix frontend",
+    "seed": "npm run seed --prefix backend",
     "start": "npm start --prefix backend",
     "dev": "npm run dev --prefix backend",
-    "seed": "npm run seed --prefix backend",
-    "install:backend": "npm install --prefix backend"
+    "dev:frontend": "npm run dev --prefix frontend",
+    "build": "npm run build --prefix frontend",
+    "test": "bash backend/scripts/validate.sh"
   }
 }

@@ -1,27 +1,61 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { LogOut, Activity, UserCircle } from 'lucide-react';
+import NotificationsBell from '../components/NotificationsBell';
 
-import QueueTracker from './tabs/QueueTracker';
+import PatientHome from './tabs/PatientHome';
+import MyQueue from './tabs/MyQueue';
 import BookingForm from './tabs/BookingForm';
+import MyVisits from './tabs/MyVisits';
+import MyRecords from './tabs/MyRecords';
+import MyBills from './tabs/MyBills';
+import MyProfile from './tabs/MyProfile';
 import DoctorPanel from './tabs/DoctorPanel';
 import AdminDashboard from './tabs/AdminDashboard';
 
 const Dashboard = () => {
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState(
-    user?.role === 'doctor' ? 'doctor' : 
-    user?.role === 'admin' ? 'admin' : 'queue'
+    user?.role === 'doctor' ? 'doctor' :
+    user?.role === 'admin' ? 'admin' : 'home'
   );
 
   const tabs = [
-    { id: 'queue', label: 'Monitor', roles: ['patient', 'admin'] },
-    { id: 'book', label: 'Booking', roles: ['patient', 'admin'] },
-    { id: 'doctor', label: 'Console', roles: ['doctor', 'admin'] },
+    { id: 'home', label: 'Home', roles: ['patient'] },
+    { id: 'queue', label: 'Queue', roles: ['patient'] },
+    { id: 'book', label: 'Book', roles: ['patient'] },
+    { id: 'visits', label: 'Visits', roles: ['patient'] },
+    { id: 'records', label: 'Records', roles: ['patient'] },
+    { id: 'bills', label: 'Bills', roles: ['patient'] },
+    { id: 'profile', label: 'Profile', roles: ['patient'] },
+    { id: 'doctor', label: 'Console', roles: ['doctor'] },
     { id: 'admin', label: 'Portal', roles: ['admin'] },
+    // Admin also gets monitoring + booking (preserved from v1)
+    { id: 'queue', label: 'Monitor', roles: ['admin'], adminQueue: true },
+    { id: 'book', label: 'Booking', roles: ['admin'], adminBook: true },
   ];
 
   const visibleTabs = tabs.filter(t => t.roles.includes(user?.role));
+  // dedupe by display label
+  const seen = new Set();
+  const finalTabs = visibleTabs.filter(t => { const k = t.label; if (seen.has(k)) return false; seen.add(k); return true; });
+
+  const goTab = (id) => setActiveTab(id);
+
+  const renderTab = () => {
+    switch (activeTab) {
+      case 'home': return <PatientHome goTab={goTab} />;
+      case 'queue': return <MyQueue />;
+      case 'book': return <BookingForm onBooked={() => goTab('home')} />;
+      case 'visits': return <MyVisits />;
+      case 'records': return <MyRecords />;
+      case 'bills': return <MyBills />;
+      case 'profile': return <MyProfile />;
+      case 'doctor': return <DoctorPanel />;
+      case 'admin': return <AdminDashboard />;
+      default: return <PatientHome goTab={goTab} />;
+    }
+  };
 
   return (
     <div className="app-card animate-in">
@@ -33,19 +67,22 @@ const Dashboard = () => {
           </div>
           <div style={{ textAlign: 'left' }}>
             <span className="title" style={{ fontSize: '16px', display: 'block' }}>MediQueue</span>
-            <span style={{ fontSize: '8px', color: '#94A3B8', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Clinical Pulse</span>
+            <span style={{ fontSize: '8px', color: '#94A3B8', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Patient Care Suite</span>
           </div>
         </div>
-        <button onClick={logout} className="logout-btn">
-          <LogOut size={20} />
-        </button>
+        <div className="flex items-center gap-2">
+          <NotificationsBell />
+          <button onClick={logout} className="logout-btn">
+            <LogOut size={20} />
+          </button>
+        </div>
       </header>
 
       {/* Pill Toggle Navigation */}
       <nav className="tab-nav">
-        <div className="pill-toggle">
-          {visibleTabs.map(t => (
-            <button key={t.id} onClick={() => setActiveTab(t.id)} className={activeTab === t.id ? 'active' : ''}>
+        <div className="pill-toggle" style={finalTabs.length > 5 ? { maxWidth: '380px' } : {}}>
+          {finalTabs.map(t => (
+            <button key={t.label} onClick={() => setActiveTab(t.id)} className={activeTab === t.id ? 'active' : ''}>
               {t.label}
             </button>
           ))}
@@ -54,10 +91,7 @@ const Dashboard = () => {
 
       {/* Dynamic Main Body */}
       <main>
-        {activeTab === 'queue' && <QueueTracker />}
-        {activeTab === 'book' && <BookingForm onBooked={() => setActiveTab('queue')} />}
-        {activeTab === 'doctor' && <DoctorPanel />}
-        {activeTab === 'admin' && <AdminDashboard />}
+        {renderTab()}
       </main>
 
       {/* Centered User Footer */}

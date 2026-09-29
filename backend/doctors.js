@@ -1,6 +1,6 @@
 const express = require('express');
 const bcrypt  = require('bcryptjs');
-const { Q }   = require('./db');
+const { Q, dbAll } = require('./db');
 const { requireRole } = require('./auth');
 
 module.exports = function (io) {
@@ -11,9 +11,12 @@ module.exports = function (io) {
     res.json({ success: true, data: Q.getAllDoctors() });
   });
 
-  // GET /api/doctors/departments
+  // GET /api/doctors/departments — merges the configurable departments table with doctor specialties
   router.get('/departments', (req, res) => {
-    res.json({ success: true, data: Q.getDepartments().map(r => r.department) });
+    const fromDoctors = Q.getDepartments().map(r => r.department);
+    const fromTable = Q.getDepartmentsAll().map(d => d.name);
+    const merged = [...new Set([...fromTable, ...fromDoctors])].sort();
+    res.json({ success: true, data: merged });
   });
 
   // GET /api/doctors/by-dept/:dept
@@ -28,7 +31,7 @@ module.exports = function (io) {
     res.json({ success: true, data: doc });
   });
 
-  // GET /api/doctors/:id/slots?date=YYYY-MM-DD
+  // GET /api/doctors/:id/slots?date=YYYY-MM-DD — availability-aware
   router.get('/:id/slots', (req, res) => {
     const { date } = req.query;
     if (!date) return res.status(400).json({ success: false, error: 'date required' });
@@ -38,12 +41,17 @@ module.exports = function (io) {
     const booked = Q.getSlotBookings(req.params.id, date);
     const bookedSet = new Set(booked.map(b => b.time_slot));
 
+    // Respect the doctor's weekly schedule when one has been configured.
+    const dow = new Date(`${date}T00:00:00`).getDay();
+    const sched = Q.getSchedulesForDay(req.params.id, dow);
+    const slotTimes = (sched && !sched.is_available) ? [] : generateSlots();
+
     const todayStr = new Date().toISOString().split('T')[0];
     const isPastDate = date < todayStr;
     const isToday = date === todayStr;
     const now = new Date();
 
-    const slots = generateSlots().map(time => {
+    const slots = slotTimes.map(time => {
       let passed = isPastDate;
       if (isToday) {
         const parts = time.split(' ');
@@ -63,6 +71,18 @@ module.exports = function (io) {
     res.json({ success: true, data: slots });
   });
 
+  // GET /api/doctors/:id/patients — patients treated by this doctor
+  router.get('/:id/patients', requireRole(['admin', 'doctor']), (req, res) => {
+    if (req.session.role === 'doctor' && req.session.linked_id !== parseInt(req.params.id))
+      return res.status(403).json({ success: false, error: 'Forbidden' });
+    const rows = dbAll(`
+      SELECT DISTINCT p.id, p.mrn, p.full_name, p.phone, p.gender, p.dob, p.blood_group
+      FROM appointments a JOIN patients p ON p.id = a.patient_id
+      WHERE a.doctor_id = ? ORDER BY p.full_name
+    `, [req.params.id]);
+    res.json({ success: true, data: rows });
+  });
+
   // PATCH /api/doctors/:id/availability  (admin or doctor)
   router.patch('/:id/availability', requireRole(['admin','doctor']), (req, res) => {
     const { is_available } = req.body;
@@ -75,7 +95,7 @@ module.exports = function (io) {
 
   // POST /api/doctors  (admin only — add new doctor)
   router.post('/', requireRole('admin'), async (req, res) => {
-    const { name, department, room, max_patients, avg_consult_minutes } = req.body;
+    const { name, department, room, max_patients, avg_consult_minutes, fee } = req.body;
     if (!name || !department || !room)
       return res.status(400).json({ success: false, error: 'name, department, room are required' });
 
@@ -87,6 +107,7 @@ module.exports = function (io) {
       $avg_consult_minutes: avg_consult_minutes || 7,
       $is_available: 1,
     });
+    if (fee) Q.updateDoctorFee(result.lastInsertRowid, Number(fee));
 
     const doctorId  = result.lastInsertRowid;
     const username  = name.split(' ').find(w => w.match(/^[A-Za-z]/))?.toLowerCase() || `doc${doctorId}`;

@@ -8,7 +8,7 @@
 const express = require('express');
 const bcrypt  = require('bcryptjs');
 const crypto  = require('crypto');
-const { Q }   = require('./db');
+const { Q, dbRun, nextMrn } = require('./db');
 
 const router = express.Router();
 
@@ -91,6 +91,69 @@ router.post('/login', async (req, res) => {
   });
 });
 
+// POST /api/auth/register — patient self-registration
+// Body: { phone, password, full_name, dob?, gender?, email?, address?, emergency_contact?, blood_group? }
+router.post('/register', async (req, res) => {
+  const { phone, password, full_name, dob, gender, email, address, emergency_contact, blood_group } = req.body;
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (digits.length < 10)
+    return res.status(400).json({ success: false, error: 'A valid 10-digit mobile number is required' });
+  if (!password || String(password).length < 4)
+    return res.status(400).json({ success: false, error: 'Password must be at least 4 characters' });
+  if (!full_name || !full_name.trim())
+    return res.status(400).json({ success: false, error: 'Full name is required' });
+
+  const username = digits;
+  if (Q.getUserByUsername(username))
+    return res.status(409).json({ success: false, error: 'An account with this mobile number already exists' });
+  if (Q.getPatientByPhone(digits))
+    return res.status(409).json({ success: false, error: 'A patient record with this mobile number already exists' });
+
+  const hash = await bcrypt.hash(String(password), 10);
+  const userResult = Q.createUser('patient', username, hash, null, full_name.trim());
+  const userId = userResult.lastInsertRowid;
+
+  const patientResult = Q.createPatient({
+    $mrn: nextMrn(),
+    $user_id: userId,
+    $full_name: full_name.trim(),
+    $dob: dob || null,
+    $gender: gender || null,
+    $phone: digits,
+    $email: email || null,
+    $address: address || null,
+    $emergency_contact: emergency_contact || null,
+    $blood_group: blood_group || null,
+    $allergies: null,
+    $chronic_conditions: null,
+    $past_surgeries: null,
+    $current_medications: null,
+    $insurance_provider: null,
+    $insurance_number: null,
+  });
+  dbRun(`UPDATE users SET linked_id = ? WHERE id = ?`, [patientResult.lastInsertRowid, userId]);
+
+  const token = randomToken();
+  const expiresAt = sessionExpiry();
+  Q.createSession(token, userId, expiresAt);
+
+  const patient = Q.getPatientById(patientResult.lastInsertRowid);
+  Q.createNotification(userId, 'Welcome to MediQueue',
+    `Your patient record ${patient.mrn} has been created.`, 'success');
+
+  return res.status(201).json({
+    success: true,
+    data: {
+      token,
+      role: 'patient',
+      username,
+      displayName: patient.full_name,
+      linkedId: patient.id,
+      patient: { mrn: patient.mrn, id: patient.id },
+    },
+  });
+});
+
 // POST /api/auth/logout
 router.post('/logout', (req, res) => {
   const authHeader = req.headers['authorization'] || '';
@@ -99,17 +162,43 @@ router.post('/logout', (req, res) => {
   res.json({ success: true });
 });
 
-// GET /api/auth/me
-router.get('/me', requireAuth, (req, res) => {
+// ── Notifications ────────────────────────────────────────────────────────────
+
+// GET /api/auth/notifications — current user's notifications
+router.get('/notifications', requireAuth, (req, res) => {
   res.json({
     success: true,
-    data: {
-      role:        req.session.role,
-      username:    req.session.username,
-      displayName: req.session.display_name,
-      linkedId:    req.session.linked_id,
-    },
+    data: Q.getNotifications(req.session.user_id),
+    unread: Q.countUnreadNotifications(req.session.user_id),
   });
+});
+
+// POST /api/auth/notifications/read — mark all as read
+router.post('/notifications/read', requireAuth, (req, res) => {
+  Q.markNotificationsRead(req.session.user_id);
+  res.json({ success: true });
+});
+
+// GET /api/auth/me
+router.get('/me', requireAuth, (req, res) => {
+  const data = {
+    role:        req.session.role,
+    username:    req.session.username,
+    displayName: req.session.display_name,
+    linkedId:    req.session.linked_id,
+  };
+  if (req.session.role === 'patient') {
+    let patient = (req.session.linked_id && Q.getPatientById(req.session.linked_id)) || null;
+    if (!patient) patient = Q.getPatientByUserId(req.session.user_id) || null;
+    if (patient) {
+      data.linkedId = patient.id;
+      data.patient = patient;
+    }
+  }
+  if (req.session.role === 'doctor' && req.session.linked_id) {
+    data.doctor = Q.getDoctorById(req.session.linked_id) || null;
+  }
+  res.json({ success: true, data });
 });
 
 module.exports = { router, requireAuth, requireRole };

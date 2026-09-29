@@ -1,20 +1,35 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../api';
+import { useAuth } from '../../context/AuthContext';
 import { Card, Button } from '../../components/UI';
 import CustomSelect from '../../components/CustomSelect';
 
 const BookingForm = ({ onBooked }) => {
+  const { user } = useAuth();
   const [departments, setDepartments] = useState([]);
   const [doctors, setDoctors] = useState([]);
   const [slots, setSlots] = useState([]);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(null);
+  const [patientId, setPatientId] = useState(null);
 
   const [formData, setFormData] = useState({
     name: '', phone: '', department: '', doctorId: '',
     date: new Date().toISOString().split('T')[0],
     slot: '', reason: ''
   });
+
+  // Logged-in patients book under their persistent record — prefill identity.
+  useEffect(() => {
+    if (user?.role === 'patient') {
+      api.get('/patients/me').then(res => {
+        if (res.success) {
+          setPatientId(res.data.id);
+          setFormData(prev => ({ ...prev, name: res.data.full_name, phone: res.data.phone }));
+        }
+      }).catch(() => {});
+    }
+  }, [user]);
 
   useEffect(() => {
     api.get('/doctors/departments').then(res => { if (res.success) setDepartments(res.data); });
@@ -37,11 +52,13 @@ const BookingForm = ({ onBooked }) => {
   const handleBook = async () => {
     setLoading(true);
     try {
-      const res = await api.post('/appointments', {
-        patient_name: formData.name, patient_phone: formData.phone,
+      const payload = {
         doctor_id: parseInt(formData.doctorId), appt_date: formData.date,
         time_slot: formData.slot, reason: formData.reason
-      });
+      };
+      if (patientId) payload.patient_id = patientId;
+      else { payload.patient_name = formData.name; payload.patient_phone = formData.phone; }
+      const res = await api.post('/appointments', payload);
       if (res.success) setSuccess(res.data);
     } catch (err) { alert(err.error || 'Booking failed'); } finally { setLoading(false); }
   };
@@ -65,7 +82,7 @@ const BookingForm = ({ onBooked }) => {
                <p className="subtitle mt-1" style={{ fontSize: '8px' }}>{success.time_slot} • {success.department}</p>
              </div>
           </div>
-          <Button onClick={() => window.location.reload()} className="w-full">Track My Turn</Button>
+          <Button onClick={() => onBooked ? onBooked() : window.location.reload()} className="w-full">Track My Turn</Button>
         </Card>
       </div>
     );
@@ -119,8 +136,12 @@ const BookingForm = ({ onBooked }) => {
 
           <div className="pt-6 border-t border-gray-50 mb-8" style={{ marginTop: '20px' }}>
             <label className="input-label">Patient Info</label>
-            <input type="text" placeholder="Full Patient Name" value={formData.name} onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))} className="input-sleek" />
-            <input type="tel" placeholder="Mobile Number" value={formData.phone} onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))} className="input-sleek" />
+            <input type="text" placeholder="Full Patient Name" value={formData.name} onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))} className="input-sleek" disabled={!!patientId} />
+            <input type="tel" placeholder="Mobile Number" value={formData.phone} onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))} className="input-sleek" disabled={!!patientId} />
+            <div className="input-group">
+              <label className="input-label">Reason for Visit (optional)</label>
+              <input type="text" placeholder="e.g. Fever, follow-up" value={formData.reason} onChange={(e) => setFormData(prev => ({ ...prev, reason: e.target.value }))} className="input-sleek" />
+            </div>
           </div>
 
           <div className="mt-8">
